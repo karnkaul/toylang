@@ -1,0 +1,17 @@
+**/.vs/*
+**/.vscode/*
+build/*
+out/*
+.cache
+.DS_Store
+
+CMakeSettings.json
+compile_commands.json
+/CMakeUserPresets.json
+
+# Test files
+settings.ini
+
+# tools
+tools/bin
+tools/out

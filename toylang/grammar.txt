@@ -1,0 +1,31 @@
+## tokens
+# single
++   -   *   /   ,   .   ;   [   ]   (   )
+
+# double
+!   !=  =   ==  >   >=  <   <=
+
+# literals
+<identifier> <number> "<string>"
+
+# literals
+and   or  true  false   fn  for   while   if  else  null  return  this  var
+
+
+## expressions
+# grammar
+expression  → literal | unary | binary | group ;
+literal     → <number> | <string> | "true" | "false" | "nil" ;
+grouping    → "(" expression ")" ;
+unary       → ( "-" | "!" ) expression ;
+binary      → expression operator expression ;
+operator    → "==" | "!=" | "<" | "<=" | ">" | ">=" | "+"  | "-"  | "*" | "/" ;
+
+# precedence (low to high)
+expression	→ equality ;
+equality		→ comparison ( ( "!=" | "==" ) comparison )* ;
+comparison	→ term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
+term			  → factor ( ( "-" | "+" ) factor )* ;
+factor			→ unary ( ( "/" | "*" ) unary )* ;
+unary			  → ( "!" | "-" ) unary | primary ;
+primary			→ <literal> | "true" | "false" | "nil" | "(" expression ")" ;
