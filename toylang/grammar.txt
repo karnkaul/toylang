@@ -9,7 +9,7 @@
 <identifier> <number> "<string>"
 
 # literals
-and   or  true  false   fn  for   while   if  else  null  return  this  var  struct   break
+and   or  true  false   fn  for   while   if  else  null  return  this  var  struct   break   import
 
 
 ## expressions
@@ -37,16 +37,18 @@ primary       → <literal> | "true" | "false" | "nil" | "(" expression ")" | <i
 # misc
 arguments     → expression ( "," expression )* ;
 parameters    → <identifier> (", <identifier> )* ;
+path          → """<string>""" ;
 
 ## statements
 program       → declaration* EOF ;
-declaration   → struct_decl | fn_decl | var_decl | statement ;
+declaration   → import_decl | struct_decl | fn_decl | var_decl | statement ;
 statement     → expr_stmt | for_stmt | if_stmt | while_stmt | block ;
 expr_stmt     → expression ";" ;
 for_stmt      → for "(" ( var_decl | expr_stmt | ";" ) expression? ";" expression? ")" block ;
 if_stmt       → "if" "(" expression ")" block ( "else" block )? ;
 while_stmt    → while "(" expression ")" block ;
 block         → "{" declaration* "}" ;
+import_decl   → "import" <path> ";" ;
 struct_decl   → "struct" <identifier> "{" member_decl* "}"
 member_decl   → ( var_decl | fn_decl ) ( "," (var_decl | fn_decl) )*
 fn_decl       → "fn" <identifier> "(" parameters? ")" block ;

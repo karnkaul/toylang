@@ -29,18 +29,19 @@ struct Clone : Intrinsic {
 	Value operator()(Interpreter& in, CallContext ctx) const override;
 };
 
-template <typename... T>
-constexpr auto get_names() {
-	return std::array{T::name_v...};
-}
+struct Str : Intrinsic {
+	static constexpr std::string_view name_v = "_str";
+	Value operator()(Interpreter& in, CallContext ctx) const override;
+};
 
-inline constexpr auto names_v = get_names<Print, PrintF, Clone>();
+struct Now : Intrinsic {
+	static constexpr std::string_view name_v = "_now";
+	Value operator()(Interpreter& in, CallContext ctx) const override;
+};
 
-inline constexpr bool taken(std::string_view name) {
-	for (auto const n : names_v) {
-		if (name == n) { return true; }
-	}
-	return false;
-}
+struct File : Intrinsic {
+	static constexpr std::string_view name_v = "_file";
+	Value operator()(Interpreter& in, CallContext ctx) const override;
+};
 } // namespace intrinsics
 } // namespace toylang

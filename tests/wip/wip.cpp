@@ -72,12 +72,11 @@ struct Repl {
 	Repl(tl::Interpreter::Debug flags = {}, std::unique_ptr<tl::util::Notifier> custom = {}) : interpreter{std::move(custom)} { interpreter.debug = flags; }
 
 	bool execute(std::string_view line) {
-		auto ret = interpreter.execute_or_evaluate(line);
+		auto ret = interpreter.execute_or_evaluate({.text = line});
 		return ret;
 	}
 
 	void run() {
-		if (auto text = file_str("list.tl"); !text.empty()) { interpreter.execute(text); }
 		auto write_cursor = [c = cursor] { std::cout << c << " "; };
 		write_cursor();
 		auto line = std::string{};

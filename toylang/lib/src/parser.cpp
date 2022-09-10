@@ -20,13 +20,31 @@ std::string args_overflow_error_str(std::string kind, std::size_t arity) {
 };
 } // namespace
 
-Parser::Parser(std::string_view text, util::Notifier* notifier) : m_notifier{notifier}, m_scanner{text, m_notifier} { advance(); }
-Parser::Parser(Quiet, std::string_view text) : m_scanner{text} { advance(); }
+struct Parser::Scope {
+	Parser& in;
+
+	Scope(Parser& in) : in(in) { in.m_flags |= eScoped; }
+	~Scope() noexcept { in.m_flags &= ~eScoped; }
+};
+
+Parser::Parser(Source source, util::Notifier* notifier) : m_notifier{notifier}, m_scanner{source, m_notifier} { advance(); }
+Parser::Parser(Quiet, Source source) : m_scanner{source} { advance(); }
 
 bool Parser::is_expression(std::string_view text) {
-	auto parser = Parser{Quiet{}, text};
+	auto parser = Parser{Quiet{}, {.text = text}};
 	if (parser.parse_expr() && parser.at_end()) { return true; }
 	return false;
+}
+
+StmtImport Parser::parse_import() {
+	if (advance_if(TokenType::eImport)) {
+		try {
+			auto path = consume(TokenType::eString);
+			consume(TokenType::eSemicolon);
+			return StmtImport{std::move(path)};
+		} catch (ParseError const&) {}
+	}
+	return {};
 }
 
 UExpr Parser::parse_expr() {
@@ -172,13 +190,6 @@ UStmt Parser::declaration() {
 	if (advance_if(TokenType::eVar)) { return decl_var(); }
 	return statement();
 }
-
-struct Parser::Scope {
-	Parser& in;
-
-	Scope(Parser& in) : in(in) { in.m_flags |= eScoped; }
-	~Scope() noexcept { in.m_flags &= ~eScoped; }
-};
 
 UPtr<StmtFn> Parser::decl_fn() {
 	auto name = consume(TokenType::eIdentifier);

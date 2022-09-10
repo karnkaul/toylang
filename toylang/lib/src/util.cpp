@@ -1,6 +1,7 @@
 #include <toylang/util.hpp>
 #include <toylang/value.hpp>
 #include <cstdio>
+#include <fstream>
 
 namespace toylang {
 std::string util::unescape(std::string_view in) {
@@ -32,5 +33,23 @@ std::string util::concat(std::span<Value const> values, std::string_view delim) 
 	return ret;
 }
 
-void util::print_unescaped(std::string_view str) { std::printf("%s", unescape(str).c_str()); }
+void util::print(char const* str) { std::printf("%s", unescape(str).c_str()); }
+
+std::string util::read_file(char const* path) {
+	auto file = std::ifstream(path, std::ios::ate);
+	if (!file) { return {}; }
+	auto const size = file.tellg();
+	file.seekg({});
+	auto ret = std::string{};
+	ret.resize(static_cast<std::size_t>(size));
+	file.read(ret.data(), size);
+	return ret;
+}
+
+bool util::write_file(char const* path, std::string_view text) {
+	auto file = std::ofstream(path);
+	if (!file) { return false; }
+	file.write(text.data(), static_cast<std::streamsize>(text.size()));
+	return true;
+}
 } // namespace toylang
