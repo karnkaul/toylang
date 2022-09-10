@@ -1,28 +1,14 @@
 #pragma once
-#include <toylang/error_reporter.hpp>
+#include <toylang/diagnostic.hpp>
 #include <toylang/token.hpp>
 #include <cassert>
 
 namespace toylang {
-namespace detail {
-template <typename Enum, typename Cont>
-constexpr auto at(Cont const& ts, Enum const e, decltype(ts[0]) const& fallback = {}) {
-	auto const index = static_cast<std::size_t>(e);
-	if (index >= std::size(ts)) { return fallback; }
-	return ts[index];
-}
-} // namespace detail
-
-inline constexpr bool in_range(char const ch, char const a, char const b) { return a <= ch && ch <= b; }
-inline constexpr bool is_digit(char const ch) { return in_range(ch, '0', '9'); }
-inline constexpr bool is_whitespace(char const ch) { return ch == ' ' || ch == '\t'; }
-inline constexpr bool is_newline(char const ch) { return ch == '\n'; }
-inline constexpr bool is_alpha(char const ch) { return in_range(ch, 'A', 'Z') || in_range(ch, 'a', 'z') || ch == '_' || ch == ':'; }
-
+template <typename TNotifier>
 class Scanner {
   public:
 	Scanner() = default;
-	constexpr Scanner(std::string_view text, ErrorReporter const* reporter = {}) : m_text(text), m_reporter(get_reporter(reporter)) {}
+	constexpr Scanner(std::string_view text, TNotifier* notifier = {}) : m_text{text}, m_notifier{notifier} {}
 
 	constexpr Token next_token() {
 		auto ret = scan_token();
@@ -30,23 +16,19 @@ class Scanner {
 		return ret;
 	}
 
-	constexpr ErrorReporter const* reporter() const { return m_reporter; }
-
-	constexpr std::string_view make_line(std::size_t start) const {
-		auto ret = m_text.substr(start);
-		return ret.substr(0, ret.find('\n'));
-	}
-
-	constexpr ErrorContext make_error_context(Location const& loc) const {
-		auto const start = start_of_line(loc.first);
-		return {
-			.line = make_line(start),
-			.marker = {loc.first - start, loc.last - loc.first},
-			.location = m_current,
-		};
+	static constexpr Diagnostic make_diagnostic(Token const& token, std::string_view message, TokenType expected = TokenType::eEof) {
+		return Diagnostic{token, expected, message, Diagnostic::Type::eSyntaxError};
 	}
 
   private:
+	static constexpr bool in_range(char const ch, char const a, char const b) { return a <= ch && ch <= b; }
+	static constexpr bool is_digit(char const ch) { return in_range(ch, '0', '9'); }
+	static constexpr bool is_whitespace(char const ch) { return ch == ' ' || ch == '\t'; }
+	static constexpr bool is_newline(char const ch) { return ch == '\n'; }
+	static constexpr bool is_alpha(char const ch) { return in_range(ch, 'A', 'Z') || in_range(ch, 'a', 'z'); }
+	static constexpr bool starts_identifier(char const ch) { return is_alpha(ch) || ch == '_'; }
+	static constexpr bool match_identifier(char const c) { return starts_identifier(c) || is_digit(c); }
+
 	constexpr bool at_end() const { return m_current.last >= m_text.size(); }
 	constexpr char peek() const { return m_current.last >= m_text.size() ? '\0' : m_text[m_current.last]; }
 	constexpr char peek_next() const { return m_current.last + 1 >= m_text.size() ? '\0' : m_text[m_current.last + 1]; }
@@ -58,13 +40,8 @@ class Scanner {
 		return 0;
 	}
 
-	constexpr Token make_token(TokenType type) const {
-		return {
-			.lexeme = m_text.substr(m_current.first, m_current.last - m_current.first),
-			.location = m_current,
-			.type = type,
-		};
-	}
+	constexpr Token make_token(TokenType type, std::string_view lexeme, Location location = {}) const { return {lexeme, location, type}; }
+	constexpr Token make_token(TokenType type) const { return make_token(type, m_text.substr(m_current.first, m_current.last - m_current.first), m_current); }
 
 	constexpr bool munch(Token& out, std::string_view const keyword, TokenType type) {
 		if (m_text.size() < m_current.first + keyword.size()) { return false; }
@@ -80,7 +57,7 @@ class Scanner {
 			advance();
 		}
 		if (at_end()) {
-			m_reporter->unterminated_string(make_error_context(m_current));
+			if (m_notifier) { (*m_notifier)(make_diagnostic(make_token(TokenType::eString), "Unterminated string")); }
 			return false;
 		}
 		// closing "
@@ -105,25 +82,19 @@ class Scanner {
 
 	constexpr Token make_identifier() {
 		auto ret = Token{};
-		for (TokenType type = keyword_range_v.first; type <= keyword_range_v.second; type = increment(type)) {
-			if (munch(ret, detail::at(token_str_v, type), type)) { return ret; }
+		for (TokenType type = keyword_range_v.first; type < keyword_range_v.second; type = increment(type)) {
+			if (munch(ret, token_string(type), type)) { return ret; }
 		}
-		while (!at_end() && is_alpha(peek())) { advance(); }
+		while (!at_end() && match_identifier(peek())) { advance(); }
 		return make_token(TokenType::eIdentifier);
 	}
 
 	constexpr bool try_single(Token& out, char const c) {
-		switch (c) {
-		case '+': out = make_token(TokenType::ePlus); return true;
-		case '-': out = make_token(TokenType::eMinus); return true;
-		case '*': out = make_token(TokenType::eStar); return true;
-		case ',': out = make_token(TokenType::eComma); return true;
-		case '.': out = make_token(TokenType::eDot); return true;
-		case ';': out = make_token(TokenType::eSemicolon); return true;
-		case '{': out = make_token(TokenType::eBraceL); return true;
-		case '}': out = make_token(TokenType::eBraceR); return true;
-		case '(': out = make_token(TokenType::eParenL); return true;
-		case ')': out = make_token(TokenType::eParenR); return true;
+		for (TokenType type = single_range_v.first; type < single_range_v.second; type = increment(type)) {
+			if (token_string(type)[0] == c) {
+				out = make_token(type);
+				return true;
+			}
 		}
 		return false;
 	}
@@ -144,6 +115,7 @@ class Scanner {
 			return true;
 		}
 		if (is_newline(c)) {
+			++m_current.first;
 			++m_current.line;
 			return true;
 		}
@@ -189,8 +161,8 @@ class Scanner {
 				}
 			}
 			if (is_digit(c)) { return make_number(); }
-			if (is_alpha(c)) { return make_identifier(); }
-			m_reporter->unexpected_token(make_error_context(m_current));
+			if (starts_identifier(c)) { return make_identifier(); }
+			if (m_notifier) { (*m_notifier)(make_diagnostic(make_token(TokenType::eString), "Unexpected token")); }
 			++m_current.first;
 		}
 		return make_token(TokenType::eEof);
@@ -198,6 +170,6 @@ class Scanner {
 
 	std::string_view m_text{};
 	Location m_current{};
-	ErrorReporter const* m_reporter{};
+	TNotifier* m_notifier{};
 };
 } // namespace toylang

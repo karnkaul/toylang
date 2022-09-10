@@ -9,7 +9,7 @@
 <identifier> <number> "<string>"
 
 # literals
-and   or  true  false   fn  for   while   if  else  null  return  this  var
+and   or  true  false   fn  for   while   if  else  null  return  this  var  struct   break
 
 
 ## expressions
@@ -22,10 +22,34 @@ binary      → expression operator expression ;
 operator    → "==" | "!=" | "<" | "<=" | ">" | ">=" | "+"  | "-"  | "*" | "/" ;
 
 # precedence (low to high)
-expression	→ equality ;
-equality		→ comparison ( ( "!=" | "==" ) comparison )* ;
-comparison	→ term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
-term			  → factor ( ( "-" | "+" ) factor )* ;
-factor			→ unary ( ( "/" | "*" ) unary )* ;
-unary			  → ( "!" | "-" ) unary | primary ;
-primary			→ <literal> | "true" | "false" | "nil" | "(" expression ")" ;
+expression    → assignment ;
+assignment    → <identifier> "=" assignment | logic_or ;
+logic_or      → logic_and ( "or" logic_and )* ;
+logic_and     → equality ( "and" equality )* ;
+equality      → comparison ( ( "!=" | "==" ) comparison )* ;
+comparison    → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
+term          → factor ( ( "-" | "+" ) factor )* ;
+factor        → unary ( ( "/" | "*" ) unary )* ;
+unary         → ( "!" | "-" ) invoke | primary ;
+invoke        → primary ( "(" arguments? ")" | "." <identifier> )* ;
+primary       → <literal> | "true" | "false" | "nil" | "(" expression ")" | <identifier>;
+
+# misc
+arguments     → expression ( "," expression )* ;
+parameters    → <identifier> (", <identifier> )* ;
+
+## statements
+program       → declaration* EOF ;
+declaration   → struct_decl | fn_decl | var_decl | statement ;
+statement     → expr_stmt | for_stmt | if_stmt | while_stmt | block ;
+expr_stmt     → expression ";" ;
+for_stmt      → for "(" ( var_decl | expr_stmt | ";" ) expression? ";" expression? ")" block ;
+if_stmt       → "if" "(" expression ")" block ( "else" block )? ;
+while_stmt    → while "(" expression ")" block ;
+block         → "{" declaration* "}" ;
+struct_decl   → "struct" <identifier> "{" member_decl* "}"
+member_decl   → ( var_decl | fn_decl ) ( "," (var_decl | fn_decl) )*
+fn_decl       → "fn" <identifier> "(" parameters? ")" block ;
+var_decl      → "var" <identifier> ( "=" expression )? ";" ;
+break         → "break" ";" ;
+return        → "return" ( expression )? ";" ;

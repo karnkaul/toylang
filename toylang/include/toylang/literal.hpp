@@ -10,6 +10,9 @@ inline constexpr bool false_v = false;
 
 struct Bool {
 	bool value{};
+	explicit constexpr operator bool() const { return value; }
+	bool operator==(Bool const&) const = default;
+	friend constexpr Bool operator!(Bool const& b) { return Bool{!b.value}; }
 };
 
 struct StringView {
@@ -17,7 +20,7 @@ struct StringView {
 	std::size_t size{};
 };
 
-class Trivial {
+class Literal {
   public:
 	enum class Type { eNull, eBool, eDouble, eString };
 	static constexpr char const* types_v[] = {"null", "bool", "double", "string"};
@@ -43,31 +46,29 @@ class Trivial {
 
 	static constexpr char const* type_str(Type type) { return types_v[static_cast<std::size_t>(type)]; }
 
-	Trivial() = default;
-	Trivial(bool) = delete;
+	Literal() = default;
+	Literal(bool) = delete;
 
-	Trivial(std::nullptr_t) {}
-	Trivial(Bool b) : Trivial{Type::eBool, b} {}
-	Trivial(double const d) : Trivial{Type::eDouble, d} {}
-	Trivial(StringView const s) : Trivial{Type::eString, s} {}
+	Literal(std::nullptr_t) {}
+	Literal(Bool b) : Literal{Type::eBool, b} {}
+	Literal(double const d) : Literal{Type::eDouble, d} {}
+	Literal(StringView const s) : Literal{Type::eString, s} {}
 
 	template <std::integral T>
-	Trivial(T const t) : Trivial{static_cast<double>(t)} {}
-	Trivial(std::string_view const s) : Trivial{StringView{s.data(), s.size()}} {}
+	Literal(T const t) : Literal{static_cast<double>(t)} {}
+	Literal(std::string_view const s) : Literal{StringView{s.data(), s.size()}} {}
 
 	Type type() const { return m_type; }
 	explicit operator bool() const { return m_type != Type::eNull; }
 
-	bool as_bool() const {
-		assert(type() == Type::eDouble);
-		auto const ret = reinterpret_cast<Bool const*>(m_buffer);
-		return ret->value;
+	Bool as_bool() const {
+		assert(type() == Type::eBool);
+		return *reinterpret_cast<Bool const*>(m_buffer);
 	}
 
 	double as_double() const {
 		assert(type() == Type::eDouble);
-		auto const ret = reinterpret_cast<double const*>(m_buffer);
-		return *ret;
+		return *reinterpret_cast<double const*>(m_buffer);
 	}
 
 	std::string_view as_string() const {
@@ -78,7 +79,7 @@ class Trivial {
 
   private:
 	template <typename T>
-	Trivial(Type type, T const t) : m_type{type} {
+	Literal(Type type, T const t) : m_type{type} {
 		static_assert(sizeof(T) <= capacity_v);
 		std::memcpy(m_buffer, &t, sizeof(T));
 	}
