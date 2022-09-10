@@ -3,6 +3,9 @@
 #include <vector>
 
 namespace toylang {
+///
+/// \brief Base class for all statements
+///
 struct Stmt {
 	struct Visitor;
 

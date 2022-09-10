@@ -19,6 +19,9 @@ struct CallContext {
 
 using Callback = std::function<Value(Interpreter&, CallContext)>;
 
+///
+/// \brief Function
+///
 struct Invocable {
 	Token def{};
 	Callback callback{};
@@ -26,6 +29,9 @@ struct Invocable {
 
 struct StructInst;
 
+///
+/// \brief Struct definition
+///
 struct StructDef {
 	std::string_view name{};
 	std::vector<std::string_view> fields{};
@@ -33,6 +39,9 @@ struct StructDef {
 	StructInst instance() const;
 };
 
+///
+/// \brief Struct instance
+///
 struct StructInst {
 	using Fields = std::unordered_map<std::string_view, Value>;
 
@@ -43,6 +52,9 @@ struct StructInst {
 	bool set(std::string_view name, Value&& value);
 };
 
+///
+/// \brief Value
+///
 struct Value {
 	using Payload = std::variant<std::nullptr_t, Bool, double, std::string, Invocable, StructDef, StructInst>;
 	Payload payload{};

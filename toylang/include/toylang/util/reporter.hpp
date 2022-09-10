@@ -2,6 +2,9 @@
 #include <toylang/util/notifier.hpp>
 
 namespace toylang::util {
+///
+/// \brief Concrete Notifier: prints formatted messages to stderr
+///
 class Reporter : public Notifier {
   public:
 	struct Context {

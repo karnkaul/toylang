@@ -3,39 +3,12 @@
 #include <unordered_map>
 
 namespace toylang {
-namespace old {
-class Environment {
-  public:
-	class Enclosed;
-
-	virtual ~Environment() = default;
-
-	bool define(std::string_view key, Value value);
-	bool destroy(std::string_view const& key);
-
-	virtual bool assign(std::string_view const& key, Value value);
-	virtual Value const* find(std::string_view const& key) const;
-	virtual Value* find(std::string_view const& key);
-
-	std::size_t count() const;
-	void clear();
-
-  private:
-	std::unordered_map<std::string_view, Value> m_map{};
-};
-
-class Environment::Enclosed : public Environment {
-  public:
-	Enclosed(Environment& enclosing) : enclosing(enclosing) {}
-
-	bool assign(std::string_view const& key, Value value) override;
-	Value const* find(std::string_view const& key) const override;
-	Value* find(std::string_view const& key) override;
-
-	Environment& enclosing;
-};
-} // namespace old
-
+///
+/// \brief The approach to Environment in toylang is significantly different from that in Crafting Interpreters:
+/// Here, each lexical scope has an associated Page, where nested scopes are stored as successive entries in a Chapter.
+/// A function call imitates a new frame, by pushing a new Chapter on the existing stack - previous chapters **are not** traversed.
+/// This means a function calls will have its own dedicated environment: globals and parameters only.
+///
 class Environment {
   public:
 	class Scope;
@@ -64,8 +37,6 @@ class Environment {
 	void pop_frame();
 
 	std::vector<Chapter> m_book{};
-
-	std::vector<Page> m_stores{};
 };
 
 class Environment::Scope {

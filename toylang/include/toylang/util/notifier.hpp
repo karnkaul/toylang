@@ -3,6 +3,9 @@
 #include <memory>
 
 namespace toylang::util {
+///
+/// \brief Base class for diagnostic notifications
+///
 class Notifier {
   public:
 	Notifier() noexcept;

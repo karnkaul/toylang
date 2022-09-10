@@ -17,6 +17,7 @@ target_sources(${PROJECT_NAME} PRIVATE
   include/toylang/value.hpp
 
   include/toylang/util/buffer.hpp
+  include/toylang/util/expr_str.hpp
   include/toylang/util/notifier.hpp
   include/toylang/util/reporter.hpp
   include/toylang/util.hpp
@@ -24,6 +25,7 @@ target_sources(${PROJECT_NAME} PRIVATE
   src/internal/intrinsics.cpp
   src/internal/intrinsics.hpp
 
+  src/util/expr_str.cpp
   src/util/notifier.cpp
   src/util/reporter.cpp
 

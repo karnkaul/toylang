@@ -20,6 +20,9 @@ struct StringView {
 	std::size_t size{};
 };
 
+///
+/// \brief Wrapper for a literal
+///
 class Literal {
   public:
 	enum class Type { eNull, eBool, eDouble, eString };

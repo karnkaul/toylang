@@ -5,11 +5,14 @@
 #include <string_view>
 
 namespace toylang::util {
+///
+/// \brief Lightweight vector
+///
 template <typename Type>
 class Buffer {
   public:
 	Buffer() = default;
-	Buffer(std::span<Type const> data) : m_data(std::make_unique_for_overwrite<char[]>(data.size())), m_size(data.size()) {
+	Buffer(std::span<Type const> data) : m_data(std::make_unique_for_overwrite<Type[]>(data.size())), m_size(data.size()) {
 		std::memcpy(m_data.get(), data.data(), data.size());
 	}
 
@@ -18,10 +21,13 @@ class Buffer {
 	std::span<Type> span() const { return {data(), size()}; }
 
   private:
-	std::unique_ptr<char[]> m_data{};
+	std::unique_ptr<Type[]> m_data{};
 	std::size_t m_size{};
 };
 
+///
+/// \brief Lightweight string
+///
 class CharBuf : public Buffer<char> {
   public:
 	CharBuf(std::string_view str) : Buffer<char>{{str.data(), str.size()}} {}

@@ -38,31 +38,30 @@ void expect_assignable(util::Reporter* reporter, Token const& name, Value const&
 } // namespace
 
 struct Interpreter::Eval : Expr::Visitor {
-	Value value{};
 	Interpreter& interpreter;
 
 	Eval(Interpreter& interpreter);
 
-	static Eval evaluate(Interpreter& interpreter, Expr const* expr);
+	static Value evaluate(Interpreter& interpreter, Expr const* expr);
 
-	void visit(ExprLiteral const& expr) override final;
-	void visit(ExprGroup const& expr) override final;
-	void visit(ExprUnary const& expr) override final;
-	void visit(ExprBinary const& expr) override final;
-	void visit(ExprVar const& expr) override final;
-	void visit(ExprAssign const& expr) override final;
-	void visit(ExprLogical const& expr) override final;
-	void visit(ExprInvoke const& expr) override final;
-	void visit(ExprGet const& expr) override final;
-	void visit(ExprSet const& expr) override final;
+	Value visit(ExprLiteral const& expr) override final;
+	Value visit(ExprGroup const& expr) override final;
+	Value visit(ExprUnary const& expr) override final;
+	Value visit(ExprBinary const& expr) override final;
+	Value visit(ExprVar const& expr) override final;
+	Value visit(ExprAssign const& expr) override final;
+	Value visit(ExprLogical const& expr) override final;
+	Value visit(ExprInvoke const& expr) override final;
+	Value visit(ExprGet const& expr) override final;
+	Value visit(ExprSet const& expr) override final;
 
-	void evaluate(Expr const& expr);
+	Value evaluate(Expr const& expr);
 
-	bool try_arithmetic(Eval const& lhs, Eval const& rhs, ExprBinary const& expr);
-	bool try_equality(Eval const& lhs, Eval const& rhs, ExprBinary const& expr);
-	bool try_comparison(Eval const& lhs, Eval const& rhs, ExprBinary const& expr);
+	bool try_arithmetic(Value const& lhs, Value const& rhs, ExprBinary const& expr, Value& out);
+	bool try_equality(Value const& lhs, Value const& rhs, ExprBinary const& expr, Value& out);
+	bool try_comparison(Value const& lhs, Value const& rhs, ExprBinary const& expr, Value& out);
 
-	void expect_number(Token const& op, Eval const& lhs, Eval const& rhs) const noexcept(false);
+	void expect_number(Token const& op, Value const& lhs, Value const& rhs) const noexcept(false);
 };
 
 struct Interpreter::Exec : Stmt::Visitor {
@@ -88,31 +87,32 @@ struct Interpreter::Exec : Stmt::Visitor {
 
 Interpreter::Eval::Eval(Interpreter& interpreter) : interpreter(interpreter) {}
 
-Interpreter::Eval Interpreter::Eval::evaluate(Interpreter& interprter, Expr const* expr) {
+Value Interpreter::Eval::evaluate(Interpreter& interprter, Expr const* expr) {
 	auto ret = Eval{interprter};
-	if (expr) { expr->accept(ret); }
-	return ret;
+	if (expr) { return expr->accept(ret); }
+	return {};
 }
 
-void Interpreter::Eval::evaluate(Expr const& expr) { expr.accept(*this); }
+Value Interpreter::Eval::evaluate(Expr const& expr) { return expr.accept(*this); }
 
-void Interpreter::Eval::visit(ExprLiteral const& expr) { value = Value::make(expr.value); }
+Value Interpreter::Eval::visit(ExprLiteral const& expr) { return Value::make(expr.value); }
 
-void Interpreter::Eval::visit(ExprGroup const& expr) {
-	if (expr.expr) { evaluate(*expr.expr); }
+Value Interpreter::Eval::visit(ExprGroup const& expr) {
+	if (expr.expr) { return evaluate(*expr.expr); }
+	return {};
 }
 
-void Interpreter::Eval::visit(ExprUnary const& expr) {
+Value Interpreter::Eval::visit(ExprUnary const& expr) {
 	if (!expr.rhs) {
 		if (interpreter.m_reporter) { (*interpreter.m_reporter)(make_internal_error(expr.op, "Right operand does not exist")); }
-		return;
+		return {};
 	}
-	evaluate(*expr.rhs);
+	auto value = evaluate(*expr.rhs);
 	switch (expr.op.type) {
 	case TokenType::eMinus: {
 		if (!value.contains<double>()) {
 			if (interpreter.m_reporter) { (*interpreter.m_reporter)(make_internal_error(expr.op, "Invalid operand to unary expression", TokenType::eNumber)); }
-			break;
+			return {};
 		}
 		auto& d = value.get<double>();
 		d = -d;
@@ -124,101 +124,98 @@ void Interpreter::Eval::visit(ExprUnary const& expr) {
 	}
 	default: {
 		if (interpreter.m_reporter) { (*interpreter.m_reporter)(make_internal_error(expr.op, "Unexpected unary operator")); }
-		break;
+		return {};
 	}
 	}
+	return value;
 }
 
-void Interpreter::Eval::visit(ExprBinary const& expr) {
+Value Interpreter::Eval::visit(ExprBinary const& expr) {
 	if (!expr.lhs || !expr.rhs) {
 		if (interpreter.m_reporter) { (*interpreter.m_reporter)(make_internal_error(expr.op, "Left/right operands do not exist")); }
-		return;
+		return {};
 	}
 	auto lhs = evaluate(interpreter, expr.lhs.get());
 	auto rhs = evaluate(interpreter, expr.rhs.get());
-	if (try_arithmetic(lhs, rhs, expr)) { return; }
-	if (try_equality(lhs, rhs, expr)) { return; }
-	if (try_comparison(lhs, rhs, expr)) { return; }
+	auto ret = Value{};
+	if (try_arithmetic(lhs, rhs, expr, ret)) { return ret; }
+	if (try_equality(lhs, rhs, expr, ret)) { return ret; }
+	if (try_comparison(lhs, rhs, expr, ret)) { return ret; }
+	return {};
 	// TODO
 }
 
-void Interpreter::Eval::visit(ExprVar const& expr) {
+Value Interpreter::Eval::visit(ExprVar const& expr) {
 	auto* bound = interpreter.m_environment.find(std::string{expr.name.lexeme});
 	if (!bound) {
 		if (interpreter.m_reporter) { (*interpreter.m_reporter)(make_runtime_error(expr.name, "Undefined variable")); }
 		throw EvalError{};
 	}
-	value = *bound;
+	return *bound;
 }
 
-void Interpreter::Eval::visit(ExprAssign const& expr) {
+Value Interpreter::Eval::visit(ExprAssign const& expr) {
 	auto* bound = interpreter.m_environment.find(std::string{expr.name.lexeme});
 	if (!bound) {
 		if (interpreter.m_reporter) { (*interpreter.m_reporter)(make_runtime_error(expr.name, "Undefined variable")); }
-		return;
+		return {};
 	}
-	*bound = std::move(evaluate(interpreter, expr.value.get()).value);
+	*bound = evaluate(interpreter, expr.value.get());
 	expect_assignable(interpreter.m_reporter.get(), expr.name, *bound);
-	value = *bound;
+	return *bound;
 }
 
-void Interpreter::Eval::visit(ExprLogical const& expr) {
+Value Interpreter::Eval::visit(ExprLogical const& expr) {
 	if (!expr.lhs || !expr.rhs) {
 		if (interpreter.m_reporter) { (*interpreter.m_reporter)(make_internal_error(expr.op, "Operand(s) don't exist")); }
-		return;
+		return {};
 	}
 	auto lhs = evaluate(interpreter, expr.lhs.get());
 	if (expr.op.type == TokenType::eOr) {
-		if (lhs.value.is_truthy()) {
-			value = std::move(lhs.value);
-			return;
-		}
+		if (lhs.is_truthy()) { return lhs; }
 	} else if (expr.op.type == TokenType::eAnd) {
-		if (!lhs.value.is_truthy()) {
-			value = std::move(lhs.value);
-			return;
-		}
+		if (!lhs.is_truthy()) { return lhs; }
 	}
 
-	value = std::move(evaluate(interpreter, expr.rhs.get()).value);
+	return evaluate(interpreter, expr.rhs.get());
 }
 
-void Interpreter::Eval::visit(ExprInvoke const& expr) {
+Value Interpreter::Eval::visit(ExprInvoke const& expr) {
 	if (!expr.callee) {
 		if (interpreter.m_reporter) { (*interpreter.m_reporter)(make_internal_error(expr.paren_r, "Callee doesn't exist")); }
-		return;
+		return {};
 	}
-	auto callee = std::move(evaluate(interpreter, expr.callee.get()).value);
+	auto callee = evaluate(interpreter, expr.callee.get());
 	if (!callee.contains<Invocable>() && !callee.contains<StructDef>()) {
 		if (interpreter.m_reporter) { (*interpreter.m_reporter)(make_runtime_error(expr.paren_r, "Invalid callee")); }
-		return;
+		return {};
 	}
 	auto args = std::vector<Value>{};
 	args.reserve(expr.args.arity);
 	for (auto const& arg : expr.args.args) {
 		if (!arg) { break; }
-		args.push_back(std::move(evaluate(interpreter, arg.get()).value));
+		args.push_back(evaluate(interpreter, arg.get()));
 	}
 	if (callee.contains<Invocable>()) {
 		auto const& cb = callee.get<Invocable>().callback;
 		if (!cb) {
 			if (interpreter.m_reporter) { (*interpreter.m_reporter)(make_internal_error(expr.paren_r, "Invocable doesn't exist")); }
-			return;
+			return {};
 		}
 
-		value = cb(interpreter, {expr.paren_r, args});
+		return cb(interpreter, {expr.paren_r, args});
 	} else {
 		auto const& sd = callee.get<StructDef>();
-		value.payload = sd.instance();
+		return Value{.payload = sd.instance()};
 	}
 }
 
-void Interpreter::Eval::visit(ExprGet const& expr) {
+Value Interpreter::Eval::visit(ExprGet const& expr) {
 	if (!expr.obj) {
 		if (interpreter.m_reporter) { (*interpreter.m_reporter)(make_internal_error(expr.name, "Caller doesn't exist")); }
-		return;
+		return {};
 	}
-	evaluate(*expr.obj);
+	auto value = evaluate(*expr.obj);
 	if (!value.contains<StructInst>()) {
 		interpreter.runtime_error(expr.name, "Only instances have properties");
 		throw EvalError{};
@@ -228,10 +225,10 @@ void Interpreter::Eval::visit(ExprGet const& expr) {
 		interpreter.runtime_error(expr.name, "Undefined property");
 		throw EvalError{};
 	}
-	value = *field;
+	return *field;
 }
 
-void Interpreter::Eval::visit(ExprSet const& expr) {
+Value Interpreter::Eval::visit(ExprSet const& expr) {
 	if (!expr.obj.get()) {
 		if (interpreter.m_reporter) { (*interpreter.m_reporter)(make_internal_error(expr.name, "Object doesn't exist")); }
 		throw EvalError{};
@@ -240,41 +237,42 @@ void Interpreter::Eval::visit(ExprSet const& expr) {
 		if (interpreter.m_reporter) { (*interpreter.m_reporter)(make_internal_error(expr.name, "Value doesn't exist")); }
 		throw EvalError{};
 	}
-	evaluate(*expr.obj);
+	auto value = evaluate(*expr.obj);
 	if (!value.contains<StructInst>()) {
 		interpreter.runtime_error(expr.name, "Only instances have fields");
 		throw EvalError{};
 	}
 	auto inst = value.get<StructInst>();
-	evaluate(*expr.value);
+	value = evaluate(*expr.value);
 	if (!inst.set(expr.name.lexeme, std::move(value))) {
 		if (interpreter.m_reporter) { (*interpreter.m_reporter)(make_internal_error(expr.name, "Failed to set field")); }
 		throw EvalError{};
 	}
+	return value;
 }
 
-bool Interpreter::Eval::try_arithmetic(Eval const& lhs, Eval const& rhs, ExprBinary const& expr) {
+bool Interpreter::Eval::try_arithmetic(Value const& lhs, Value const& rhs, ExprBinary const& expr, Value& out) {
 	switch (expr.op.type) {
 	case TokenType::eMinus: {
 		expect_number(expr.op, lhs, rhs);
-		value = Value::make(lhs.value.get<double>() - rhs.value.get<double>());
+		out = Value::make(lhs.get<double>() - rhs.get<double>());
 		return true;
 	}
 	case TokenType::eStar: {
 		expect_number(expr.op, lhs, rhs);
-		value = Value::make(lhs.value.get<double>() * rhs.value.get<double>());
+		out = Value::make(lhs.get<double>() * rhs.get<double>());
 		return true;
 	}
 	case TokenType::eSlash: {
 		expect_number(expr.op, lhs, rhs);
-		value = Value::make(lhs.value.get<double>() / rhs.value.get<double>());
+		out = Value::make(lhs.get<double>() / rhs.get<double>());
 		return true;
 	}
 	case TokenType::ePlus: {
-		if (lhs.value.contains<double>() && rhs.value.contains<double>()) {
-			value.payload = lhs.value.get<double>() + rhs.value.get<double>();
-		} else if (lhs.value.contains<std::string>() && rhs.value.contains<std::string>()) {
-			value.payload = std::move(lhs.value.get<std::string>()) + std::move(rhs.value.get<std::string>());
+		if (lhs.contains<double>() && rhs.contains<double>()) {
+			out.payload = lhs.get<double>() + rhs.get<double>();
+		} else if (lhs.contains<std::string>() && rhs.contains<std::string>()) {
+			out.payload = std::move(lhs.get<std::string>()) + std::move(rhs.get<std::string>());
 		} else {
 			if (interpreter.m_reporter) { (*interpreter.m_reporter)(make_runtime_error(expr.op, "Invalid operands to binary expression")); }
 			throw EvalError{};
@@ -285,21 +283,21 @@ bool Interpreter::Eval::try_arithmetic(Eval const& lhs, Eval const& rhs, ExprBin
 	}
 }
 
-bool Interpreter::Eval::try_equality(Eval const& lhs, Eval const& rhs, ExprBinary const& expr) {
+bool Interpreter::Eval::try_equality(Value const& lhs, Value const& rhs, ExprBinary const& expr, Value& out) {
 	switch (expr.op.type) {
 	case TokenType::eEqEq: {
-		value.payload = Bool{lhs.value == rhs.value};
+		out.payload = Bool{lhs == rhs};
 		return true;
 	}
 	case TokenType::eBangEq: {
-		value.payload = Bool{lhs.value != rhs.value};
+		out.payload = Bool{lhs != rhs};
 		return true;
 	}
 	default: return false;
 	}
 }
 
-bool Interpreter::Eval::try_comparison(Eval const& lhs, Eval const& rhs, ExprBinary const& expr) {
+bool Interpreter::Eval::try_comparison(Value const& lhs, Value const& rhs, ExprBinary const& expr, Value& out) {
 	auto compare = [this, op = expr.op](Value const& a, Value const& b) -> std::partial_ordering {
 		bool const are_str = a.contains<std::string>() && b.contains<std::string>();
 		bool const are_double = a.contains<double>() && b.contains<double>();
@@ -314,27 +312,27 @@ bool Interpreter::Eval::try_comparison(Eval const& lhs, Eval const& rhs, ExprBin
 	};
 	switch (expr.op.type) {
 	case TokenType::eLt: {
-		value.payload = Bool{compare(lhs.value, rhs.value) < 0};
+		out.payload = Bool{compare(lhs, rhs) < 0};
 		return true;
 	}
 	case TokenType::eLe: {
-		value.payload = Bool{compare(lhs.value, rhs.value) <= 0};
+		out.payload = Bool{compare(lhs, rhs) <= 0};
 		return true;
 	}
 	case TokenType::eGt: {
-		value.payload = Bool{compare(lhs.value, rhs.value) > 0};
+		out.payload = Bool{compare(lhs, rhs) > 0};
 		return true;
 	}
 	case TokenType::eGe: {
-		value.payload = Bool{compare(lhs.value, rhs.value) >= 0};
+		out.payload = Bool{compare(lhs, rhs) >= 0};
 		return true;
 	}
 	default: return false;
 	}
 }
 
-void Interpreter::Eval::expect_number(Token const& op, Eval const& lhs, Eval const& rhs) const {
-	if (!lhs.value.contains<double>() || !rhs.value.contains<double>()) {
+void Interpreter::Eval::expect_number(Token const& op, Value const& lhs, Value const& rhs) const {
+	if (!lhs.contains<double>() || !rhs.contains<double>()) {
 		if (interpreter.m_reporter) { (*interpreter.m_reporter)(make_runtime_error(op, "Invalid operands to binary expression", TokenType::eNumber)); }
 		throw EvalError{};
 	}
@@ -437,7 +435,7 @@ bool Interpreter::Exec::check_statement(Stmt const* stmt) const {
 	return true;
 }
 
-Value Interpreter::Exec::evaluate(Expr const* expr) { return std::move(Eval::evaluate(interpreter, expr).value); }
+Value Interpreter::Exec::evaluate(Expr const* expr) { return Eval::evaluate(interpreter, expr); }
 
 void Interpreter::Exec::execute_block(std::span<UStmt const> stmts) {
 	for (auto const& stmt : stmts) {
@@ -475,8 +473,8 @@ bool Interpreter::evaluate(std::string_view expression) {
 	auto parser = Parser{expression, m_reporter.get()};
 	auto eval = Eval{*this};
 	while (auto expr = parser.parse_expr()) {
-		expr->accept(eval);
-		std::printf("%s\n", util::unescape(to_string(eval.value)).c_str());
+		auto value = expr->accept(eval);
+		std::printf("%s\n", util::unescape(to_string(value)).c_str());
 	}
 	return !is_errored();
 }

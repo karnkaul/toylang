@@ -15,7 +15,6 @@ struct Diagnostic {
 	bool is_error() const { return is_error(type); }
 
 	Token token{};
-	// Expect expected{};
 	TokenType expected{TokenType::eEof};
 	std::string_view message{};
 	Type type{};

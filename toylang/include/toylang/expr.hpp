@@ -1,18 +1,20 @@
 #pragma once
-#include <toylang/literal.hpp>
 #include <toylang/token.hpp>
+#include <toylang/value.hpp>
 #include <memory>
 
 namespace toylang {
 template <typename Type>
 using UPtr = std::unique_ptr<Type>;
 
+///
+/// \brief Base class for all expressions
+///
 struct Expr {
 	struct Visitor;
-	struct Printer;
 
 	virtual ~Expr() = default;
-	virtual void accept(Visitor& out) const = 0;
+	virtual Value accept(Visitor& out) const = 0;
 };
 
 using UExpr = UPtr<Expr>;
@@ -34,14 +36,14 @@ struct ExprLiteral : Expr {
 	Token self;
 
 	ExprLiteral(Literal value, Token self) : value{std::move(value)}, self(std::move(self)) {}
-	void accept(Visitor& out) const override final;
+	Value accept(Visitor& out) const override final;
 };
 
 struct ExprGroup : Expr {
 	UExpr expr;
 
 	ExprGroup(UExpr&& expr) : expr{std::move(expr)} {}
-	void accept(Visitor& out) const override final;
+	Value accept(Visitor& out) const override final;
 };
 
 struct ExprUnary : Expr {
@@ -49,7 +51,7 @@ struct ExprUnary : Expr {
 	UExpr rhs;
 
 	ExprUnary(Token op, UExpr&& rhs) : op{op}, rhs{std::move(rhs)} {}
-	void accept(Visitor& out) const override final;
+	Value accept(Visitor& out) const override final;
 };
 
 struct ExprBinary : Expr {
@@ -58,14 +60,14 @@ struct ExprBinary : Expr {
 	UExpr rhs;
 
 	ExprBinary(UExpr&& lhs, Token op, UExpr&& rhs) : lhs{std::move(lhs)}, op{op}, rhs{std::move(rhs)} {}
-	void accept(Visitor& out) const override final;
+	Value accept(Visitor& out) const override final;
 };
 
 struct ExprVar : Expr {
 	Token name;
 
 	ExprVar(Token name) : name{std::move(name)} {}
-	void accept(Visitor& out) const override final;
+	Value accept(Visitor& out) const override final;
 };
 
 struct ExprAssign : Expr {
@@ -73,7 +75,7 @@ struct ExprAssign : Expr {
 	UExpr value;
 
 	ExprAssign(Token name, UExpr&& value) : name{std::move(name)}, value{std::move(value)} {}
-	void accept(Visitor& out) const override final;
+	Value accept(Visitor& out) const override final;
 };
 
 struct ExprLogical : Expr {
@@ -82,7 +84,7 @@ struct ExprLogical : Expr {
 	UExpr rhs;
 
 	ExprLogical(UExpr&& lhs, Token op, UExpr&& rhs) : lhs{std::move(lhs)}, op{std::move(op)}, rhs{std::move(rhs)} {}
-	void accept(Visitor& out) const override final;
+	Value accept(Visitor& out) const override final;
 };
 
 struct ExprInvoke : Expr {
@@ -93,7 +95,7 @@ struct ExprInvoke : Expr {
 	Args args;
 
 	ExprInvoke(UExpr&& callee, Token token, Args&& args) : callee{std::move(callee)}, paren_r{std::move(token)}, args{std::move(args)} {}
-	void accept(Visitor& out) const override final;
+	Value accept(Visitor& out) const override final;
 };
 
 struct ExprGet : Expr {
@@ -101,7 +103,7 @@ struct ExprGet : Expr {
 	Token name{};
 
 	ExprGet(UExpr&& obj, Token name) : obj{std::move(obj)}, name{std::move(name)} {}
-	void accept(Visitor& out) const override final;
+	Value accept(Visitor& out) const override final;
 };
 
 struct ExprSet : Expr {
@@ -110,37 +112,20 @@ struct ExprSet : Expr {
 	UExpr value{};
 
 	ExprSet(UExpr&& obj, Token name, UExpr&& value) : obj{std::move(obj)}, name{std::move(name)}, value{std::move(value)} {}
-	void accept(Visitor& out) const final override;
+	Value accept(Visitor& out) const final override;
 };
 
 struct Expr::Visitor {
-	virtual void visit(ExprLiteral const&) = 0;
-	virtual void visit(ExprGroup const&) = 0;
-	virtual void visit(ExprUnary const&) = 0;
-	virtual void visit(ExprBinary const&) = 0;
-	virtual void visit(ExprVar const&) = 0;
-	virtual void visit(ExprAssign const&) = 0;
-	virtual void visit(ExprLogical const&) = 0;
-	virtual void visit(ExprInvoke const&) = 0;
-	virtual void visit(ExprGet const&) = 0;
-	virtual void visit(ExprSet const&) = 0;
-};
-
-struct Expr::Printer : Visitor {
-	std::string& out;
-
-	Printer(std::string& out) : out(out) {}
-
-	void visit(ExprLiteral const& expr) override final;
-	void visit(ExprGroup const& expr) override final;
-	void visit(ExprUnary const& expr) override final;
-	void visit(ExprBinary const& expr) override final;
-	void visit(ExprVar const& expr) override final;
-	void visit(ExprAssign const& expr) override final;
-	void visit(ExprLogical const& expr) override final;
-	void visit(ExprInvoke const& expr) override final;
-	void visit(ExprGet const& expr) override final;
-	void visit(ExprSet const& expr) override final;
+	virtual Value visit(ExprLiteral const&) = 0;
+	virtual Value visit(ExprGroup const&) = 0;
+	virtual Value visit(ExprUnary const&) = 0;
+	virtual Value visit(ExprBinary const&) = 0;
+	virtual Value visit(ExprVar const&) = 0;
+	virtual Value visit(ExprAssign const&) = 0;
+	virtual Value visit(ExprLogical const&) = 0;
+	virtual Value visit(ExprInvoke const&) = 0;
+	virtual Value visit(ExprGet const&) = 0;
+	virtual Value visit(ExprSet const&) = 0;
 };
 
 std::string to_string(Expr const& expr);
