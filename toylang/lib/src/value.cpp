@@ -1,3 +1,4 @@
+#include <toylang/util.hpp>
 #include <toylang/value.hpp>
 #include <cassert>
 
@@ -34,7 +35,7 @@ bool StructInst::set(std::string_view name, Value&& value) {
 Value Value::make(Literal const& literal) {
 	auto ret = Value{};
 	switch (literal.type()) {
-	case Literal::Type::eString: ret.payload = std::string{literal.as_string()}; break;
+	case Literal::Type::eString: ret.payload = util::unescape(literal.as_string()); break;
 	case Literal::Type::eDouble: ret.payload = literal.as_double(); break;
 	case Literal::Type::eBool: ret.payload = Bool{literal.as_bool()}; break;
 	case Literal::Type::eNull: ret.payload = nullptr; break;

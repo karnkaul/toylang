@@ -36,17 +36,6 @@ void expect_assignable(util::Reporter* reporter, Token const& name, Value const&
 		throw EvalError{};
 	}
 }
-
-std::string read_file(std::string const& path) {
-	auto file = std::ifstream(path, std::ios::ate);
-	if (!file) { return {}; }
-	auto const size = file.tellg();
-	file.seekg({});
-	auto ret = std::string{};
-	ret.resize(static_cast<std::size_t>(size));
-	file.read(ret.data(), size);
-	return ret;
-}
 } // namespace
 
 struct Interpreter::Eval : Expr::Visitor {
@@ -358,7 +347,6 @@ void Interpreter::Exec::visit(StmtExpr const& stmt) {
 }
 
 void Interpreter::Exec::visit(StmtVar const& stmt) {
-	if (!interpreter.require_unreserved(stmt.name)) { return; }
 	auto value = evaluate(stmt.initializer.get());
 	expect_assignable(interpreter.m_reporter.get(), stmt.name, value);
 	interpreter.define(stmt.name, std::move(value));
@@ -386,7 +374,6 @@ void Interpreter::Exec::visit(StmtWhile const& stmt) {
 void Interpreter::Exec::visit(StmtBreak const& stmt) { throw StmtBreak::Break{stmt.brk}; }
 
 void Interpreter::Exec::visit(StmtFn const& stmt) {
-	if (!interpreter.require_unreserved(stmt.name)) { return; }
 	struct Invoker {
 		StmtFn const* decl{};
 		util::Notifier* notifier{};
@@ -465,7 +452,7 @@ bool Interpreter::execute_or_evaluate(std::string_view text) {
 
 bool Interpreter::execute(std::string_view program) {
 	if (program.empty()) { return true; }
-	program = store({.full_text = program});
+	program = store({}, program);
 	auto parser = Parser{program, m_reporter.get()};
 	while (auto stmt = parser.parse_import()) {
 		if (!execute_import(stmt.path)) { return false; }
@@ -484,7 +471,7 @@ bool Interpreter::execute(std::string_view program) {
 
 bool Interpreter::evaluate(std::string_view expression) {
 	if (expression.empty()) { return false; }
-	expression = store({.full_text = expression});
+	expression = store({}, expression);
 	auto parser = Parser{expression, m_reporter.get()};
 	auto eval = Eval{*this};
 	while (auto expr = parser.parse_expr()) {
@@ -493,8 +480,6 @@ bool Interpreter::evaluate(std::string_view expression) {
 	}
 	return !is_errored();
 }
-
-bool Interpreter::is_reserved(std::string_view name) const { return intrinsics::taken(name); }
 
 void Interpreter::runtime_error(Token const& at, std::string_view message) const { m_reporter->notify(make_runtime_error(at, message)); }
 
@@ -507,8 +492,8 @@ void Interpreter::clear_state() {
 bool Interpreter::execute_import(Token const& path) {
 	if (std::find(m_storage.imported.begin(), m_storage.imported.end(), path.lexeme) != m_storage.imported.end()) { return true; }
 	auto str = std::string{path.lexeme};
-	auto program = read_file(str);
-	if (program.empty()) {
+	auto program = std::string{};
+	if (!media.read_to(program, str)) {
 		m_reporter->notify(make_runtime_error(path, "File not found"));
 		return false;
 	}
@@ -519,42 +504,36 @@ bool Interpreter::execute_import(Token const& path) {
 	return false;
 }
 
-bool Interpreter::require_unreserved(Token const& name) const {
-	if (is_reserved(name.lexeme)) {
-		m_reporter->notify(make_runtime_error(name, "Cannot overwwrite intrinsic"));
-		return false;
-	}
-	return true;
-}
-
 bool Interpreter::define(Token const& name, Value value) {
-	if (!require_unreserved(name)) { return false; }
 	m_environment.define(name.lexeme, std::move(value));
 	return true;
 }
 
 bool Interpreter::assign(Token const& name, Value value) {
-	if (!require_unreserved(name)) { return false; }
 	m_environment.assign(name.lexeme, std::move(value));
 	return true;
 }
 
-void Interpreter::add_intrinsics() {
-	m_environment.define(intrinsics::Print::name_v, {.payload = Invocable{.callback = intrinsics::Print{}}});
-	m_environment.define(intrinsics::PrintF::name_v, {.payload = Invocable{.callback = intrinsics::PrintF{}}});
-	m_environment.define(intrinsics::Clone::name_v, {.payload = Invocable{.callback = intrinsics::Clone{}}});
+template <typename... T>
+void Interpreter::add_intrinsic() {
+	(m_environment.define(T::name_v, {.payload = Invocable{.callback = T{}}}), ...);
 }
 
-std::string_view Interpreter::store(util::Reporter::Context context) {
-	assert(!context.full_text.empty());
-	if (!context.filename.empty()) {
-		m_storage.texts.push_back(context.filename);
-		context.filename = m_storage.texts.back();
+void Interpreter::add_intrinsics() {
+	using namespace intrinsics;
+	add_intrinsic<Print, PrintF, Clone, Str, Now, File>();
+}
+
+std::string_view Interpreter::store(std::string_view filename, std::string_view full_text) {
+	assert(!full_text.empty());
+	if (!filename.empty()) {
+		m_storage.texts.push_back(filename);
+		filename = m_storage.texts.back();
 	}
-	m_storage.texts.push_back(context.full_text);
-	context.full_text = m_storage.texts.back();
-	m_reporter->reset(context);
-	return context.full_text;
+	m_storage.texts.push_back(full_text);
+	full_text = m_storage.texts.back();
+	m_reporter->reset(filename);
+	return full_text;
 }
 
 Stmt& Interpreter::store(UStmt&& stmt) {

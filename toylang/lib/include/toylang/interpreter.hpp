@@ -1,5 +1,6 @@
 #pragma once
 #include <toylang/environment.hpp>
+#include <toylang/media.hpp>
 #include <toylang/stmt.hpp>
 #include <toylang/util/buffer.hpp>
 #include <toylang/util/reporter.hpp>
@@ -20,10 +21,10 @@ class Interpreter {
 
 	Environment& environment() { return m_environment; }
 
-	bool is_reserved(std::string_view name) const;
 	void runtime_error(Token const& at, std::string_view message) const;
 	void clear_state();
 
+	Media media{};
 	Debug debug{};
 
   private:
@@ -43,12 +44,13 @@ class Interpreter {
 
 	bool execute_import(Token const& path);
 	bool is_errored() const { return m_reporter->error(); }
-	bool require_unreserved(Token const& name) const;
 	bool define(Token const& name, Value value);
 	bool assign(Token const& name, Value value);
 
+	template <typename... T>
+	void add_intrinsic();
 	void add_intrinsics();
-	std::string_view store(util::Reporter::Context context);
+	std::string_view store(std::string_view filename, std::string_view full_text);
 	Stmt& store(UStmt&& stmt);
 
 	std::unique_ptr<util::Reporter> m_reporter{};

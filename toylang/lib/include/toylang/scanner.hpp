@@ -8,11 +8,11 @@ template <typename TNotifier>
 class Scanner {
   public:
 	Scanner() = default;
-	constexpr Scanner(std::string_view text, TNotifier* notifier = {}) : m_text{text}, m_notifier{notifier} {}
+	constexpr Scanner(std::string_view text, TNotifier* notifier = {}) : m_notifier{notifier} { m_current.full_text = text; }
 
 	constexpr Token next_token() {
 		auto ret = scan_token();
-		m_current.first = m_current.last;
+		m_current.char_span.first = m_current.char_span.last;
 		return ret;
 	}
 
@@ -29,24 +29,28 @@ class Scanner {
 	static constexpr bool starts_identifier(char const ch) { return is_alpha(ch) || ch == '_'; }
 	static constexpr bool match_identifier(char const c) { return starts_identifier(c) || is_digit(c); }
 
-	constexpr bool at_end() const { return m_current.last >= m_text.size(); }
-	constexpr char peek() const { return m_current.last >= m_text.size() ? '\0' : m_text[m_current.last]; }
-	constexpr char peek_next() const { return m_current.last + 1 >= m_text.size() ? '\0' : m_text[m_current.last + 1]; }
+	constexpr bool at_end() const { return m_current.char_span.last >= m_current.full_text.size(); }
+	constexpr char peek() const { return m_current.char_span.last >= m_current.full_text.size() ? '\0' : m_current.full_text[m_current.char_span.last]; }
+	constexpr char peek_next() const {
+		return m_current.char_span.last + 1 >= m_current.full_text.size() ? '\0' : m_current.full_text[m_current.char_span.last + 1];
+	}
 
 	constexpr std::size_t start_of_line(std::size_t start) const {
 		for (std::size_t i = start; i + 1 > 0; --i) {
-			if (m_text[i] == '\n') { return i; }
+			if (m_current.full_text[i] == '\n') { return i; }
 		}
 		return 0;
 	}
 
-	constexpr Token make_token(TokenType type, std::string_view lexeme, Location location = {}) const { return {lexeme, location, type}; }
-	constexpr Token make_token(TokenType type) const { return make_token(type, m_text.substr(m_current.first, m_current.last - m_current.first), m_current); }
+	constexpr Token make_token(TokenType type, std::string_view lexeme, Location location = {}) const { return {m_current.full_text, lexeme, location, type}; }
+	constexpr Token make_token(TokenType type) const {
+		return make_token(type, m_current.full_text.substr(m_current.char_span.first, m_current.char_span.last - m_current.char_span.first), m_current);
+	}
 
 	constexpr bool munch(Token& out, std::string_view const keyword, TokenType type) {
-		if (m_text.size() < m_current.first + keyword.size()) { return false; }
-		if (m_text.substr(m_current.first, keyword.size()) != keyword) { return false; }
-		m_current.last = m_current.first + keyword.size();
+		if (m_current.full_text.size() < m_current.char_span.first + keyword.size()) { return false; }
+		if (m_current.full_text.substr(m_current.char_span.first, keyword.size()) != keyword) { return false; }
+		m_current.char_span.last = m_current.char_span.first + keyword.size();
 		out = make_token(type);
 		return true;
 	}
@@ -63,7 +67,7 @@ class Scanner {
 		// closing "
 		advance();
 		out = {
-			.lexeme = m_text.substr(m_current.first + 1, m_current.last - m_current.first - 2),
+			.lexeme = m_current.full_text.substr(m_current.char_span.first + 1, m_current.char_span.last - m_current.char_span.first - 2),
 			.location = m_current,
 			.type = TokenType::eString,
 		};
@@ -111,11 +115,11 @@ class Scanner {
 
 	constexpr bool ignore(char const c) {
 		if (is_whitespace(c)) {
-			++m_current.first;
+			++m_current.char_span.first;
 			return true;
 		}
 		if (is_newline(c)) {
-			++m_current.first;
+			++m_current.char_span.first;
 			++m_current.line;
 			return true;
 		}
@@ -124,13 +128,13 @@ class Scanner {
 
 	constexpr char advance() {
 		assert(!at_end());
-		return m_text[m_current.last++];
+		return m_current.full_text[m_current.char_span.last++];
 	}
 
 	constexpr bool advance_if(char expected) {
 		assert(expected != '\0');
 		if (peek() != expected) { return false; }
-		++m_current.last;
+		++m_current.char_span.last;
 		return true;
 	}
 
@@ -163,12 +167,11 @@ class Scanner {
 			if (is_digit(c)) { return make_number(); }
 			if (starts_identifier(c)) { return make_identifier(); }
 			if (m_notifier) { (*m_notifier)(make_diagnostic(make_token(TokenType::eString), "Unexpected token")); }
-			++m_current.first;
+			++m_current.char_span.first;
 		}
 		return make_token(TokenType::eEof);
 	}
 
-	std::string_view m_text{};
 	Location m_current{};
 	TNotifier* m_notifier{};
 };
