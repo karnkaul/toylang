@@ -72,7 +72,7 @@ struct Repl {
 	Repl(tl::Interpreter::Debug flags = {}, std::unique_ptr<tl::util::Notifier> custom = {}) : interpreter{std::move(custom)} { interpreter.debug = flags; }
 
 	bool execute(std::string_view line) {
-		auto ret = interpreter.execute_or_evaluate(line);
+		auto ret = interpreter.execute_or_evaluate({.text = line});
 		return ret;
 	}
 

@@ -1,5 +1,6 @@
 #pragma once
 #include <toylang/diagnostic.hpp>
+#include <toylang/source.hpp>
 #include <toylang/token.hpp>
 #include <cassert>
 
@@ -8,7 +9,10 @@ template <typename TNotifier>
 class Scanner {
   public:
 	Scanner() = default;
-	constexpr Scanner(std::string_view text, TNotifier* notifier = {}) : m_notifier{notifier} { m_current.full_text = text; }
+	constexpr Scanner(Source source, TNotifier* notifier = {}) : m_notifier{notifier} {
+		m_current.filename = source.filename;
+		m_current.full_text = source.text;
+	}
 
 	constexpr Token next_token() {
 		auto ret = scan_token();
@@ -42,7 +46,14 @@ class Scanner {
 		return 0;
 	}
 
-	constexpr Token make_token(TokenType type, std::string_view lexeme, Location location = {}) const { return {m_current.full_text, lexeme, location, type}; }
+	constexpr Token make_token(TokenType type, std::string_view lexeme, Location location = {}) const {
+		return Token{
+			.lexeme = lexeme,
+			.location = location,
+			.type = type,
+		};
+	}
+
 	constexpr Token make_token(TokenType type) const {
 		return make_token(type, m_current.full_text.substr(m_current.char_span.first, m_current.char_span.last - m_current.char_span.first), m_current);
 	}

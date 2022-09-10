@@ -17,7 +17,6 @@ struct PrintData {
 	std::string_view filename{};
 	std::string_view line{};
 	Marker marker{};
-	Token token{};
 
 	constexpr std::string_view marked() const {
 		if (marker.first >= line.size()) { return "[eof]"; }
@@ -38,13 +37,12 @@ constexpr std::string_view make_line(std::string_view const text, std::size_t co
 	return ret.substr(0, ret.find('\n'));
 }
 
-constexpr PrintData make_data(Token const& token, std::string_view filename = {}) {
-	auto const start = start_of_line(token.full_text, token.location.char_span.first);
+constexpr PrintData make_data(Token const& token) {
+	auto const start = start_of_line(token.location.full_text, token.location.char_span.first);
 	return {
-		.filename = filename,
-		.line = make_line(token.full_text, start),
+		.filename = token.location.filename,
+		.line = make_line(token.location.full_text, start),
 		.marker = {token.location.char_span.first - start, token.location.char_span.last - token.location.char_span.first},
-		.token = token,
 	};
 }
 
@@ -84,7 +82,7 @@ void Reporter::on_notify(Diagnostic const& diag) {
 		m_data.error = true;
 		fptr = stderr;
 	}
-	auto const ctx = make_data(diag.token, m_data.filename);
+	auto const ctx = make_data(diag.token);
 	std::fprintf(fptr, "%s\n", format(ctx, diag, quote, mark).c_str());
 }
 } // namespace toylang::util

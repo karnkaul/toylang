@@ -5,7 +5,6 @@
 #include <toylang/util.hpp>
 #include <compare>
 #include <cstdio>
-#include <fstream>
 #include <span>
 #include <utility>
 
@@ -445,14 +444,14 @@ void Interpreter::Exec::execute_block(std::span<UStmt const> stmts) {
 
 Interpreter::Interpreter(std::unique_ptr<util::Notifier> custom) : m_reporter{std::make_unique<util::Reporter>(std::move(custom))} { add_intrinsics(); }
 
-bool Interpreter::execute_or_evaluate(std::string_view text) {
-	if (Parser::is_expression(text)) { return evaluate(text); }
+bool Interpreter::execute_or_evaluate(Source text) {
+	if (Parser::is_expression(text.text)) { return evaluate(text.text); }
 	return execute(text);
 }
 
-bool Interpreter::execute(std::string_view program) {
-	if (program.empty()) { return true; }
-	program = store({}, program);
+bool Interpreter::execute(Source program) {
+	if (program.text.empty()) { return true; }
+	program = store(program);
 	auto parser = Parser{program, m_reporter.get()};
 	while (auto stmt = parser.parse_import()) {
 		if (!execute_import(stmt.path)) { return false; }
@@ -471,8 +470,9 @@ bool Interpreter::execute(std::string_view program) {
 
 bool Interpreter::evaluate(std::string_view expression) {
 	if (expression.empty()) { return false; }
-	expression = store({}, expression);
-	auto parser = Parser{expression, m_reporter.get()};
+	auto source = Source{.text = expression};
+	source = store(source);
+	auto parser = Parser{source, m_reporter.get()};
 	auto eval = Eval{*this};
 	while (auto expr = parser.parse_expr()) {
 		auto value = expr->accept(eval);
@@ -497,7 +497,7 @@ bool Interpreter::execute_import(Token const& path) {
 		m_reporter->notify(make_runtime_error(path, "File not found"));
 		return false;
 	}
-	if (execute(program)) {
+	if (execute({.filename = path.lexeme, .text = program})) {
 		m_storage.imported.push_back(std::move(str));
 		return true;
 	}
@@ -524,16 +524,15 @@ void Interpreter::add_intrinsics() {
 	add_intrinsic<Print, PrintF, Clone, Str, Now, File>();
 }
 
-std::string_view Interpreter::store(std::string_view filename, std::string_view full_text) {
-	assert(!full_text.empty());
-	if (!filename.empty()) {
-		m_storage.texts.push_back(filename);
-		filename = m_storage.texts.back();
+Source Interpreter::store(Source source) {
+	assert(!source.text.empty());
+	if (!source.filename.empty()) {
+		m_storage.texts.push_back(source.filename);
+		source.filename = m_storage.texts.back();
 	}
-	m_storage.texts.push_back(full_text);
-	full_text = m_storage.texts.back();
-	m_reporter->reset(filename);
-	return full_text;
+	m_storage.texts.push_back(source.text);
+	source.text = m_storage.texts.back();
+	return source;
 }
 
 Stmt& Interpreter::store(UStmt&& stmt) {

@@ -11,7 +11,7 @@ namespace {
 struct Runner {
 	Interpreter interpreter{};
 
-	bool execute(std::string_view script) { return interpreter.execute_or_evaluate(script); }
+	bool execute(Source script) { return interpreter.execute_or_evaluate(script); }
 
 	bool open(char const* path) {
 		auto text = util::read_file(path);
@@ -19,7 +19,7 @@ struct Runner {
 			std::cerr << "Failed to open " << path << '\n';
 			return false;
 		}
-		return execute(text);
+		return execute({.filename = path, .text = text});
 	}
 
 	void run(std::string_view cursor = ">") {
@@ -28,19 +28,21 @@ struct Runner {
 		auto line = std::string{};
 		while (std::getline(std::cin, line)) {
 			if (line == "q" || line == "quit") { return; }
-			execute(line);
+			execute({.text = line});
 			write_cursor();
 		}
 	}
 };
 
 int run(int argc, char const* const argv[]) {
-	auto const exe_path = fs::path(argv[0]);
+	auto const exe_path = fs::absolute(argv[0]);
 	auto const exe_name = exe_path.filename().generic_string();
 	auto const stdlib_path = [&] {
 		for (fs::path path = exe_path; !path.empty() && path.parent_path() != path; path = path.parent_path()) {
-			auto ret = path / "toylang/stdlib";
-			if (fs::is_directory(ret)) { return ret.generic_string(); }
+			auto ret = path / "stdlib";
+			if (fs::is_regular_file(ret / "std.tl")) { return ret.generic_string(); }
+			ret = path / "toylang/stdlib";
+			if (fs::is_regular_file(ret / "std.tl")) { return ret.generic_string(); }
 		}
 		return std::string{};
 	}();
@@ -58,7 +60,10 @@ int run(int argc, char const* const argv[]) {
 	auto runner = toylang::Runner{};
 	runner.interpreter.debug = debug_flags;
 	runner.interpreter.media.mount(exe_path.parent_path().generic_string());
-	if (!stdlib_path.empty()) { runner.interpreter.media.mount(stdlib_path); }
+	if (!stdlib_path.empty()) {
+		runner.interpreter.media.mount(stdlib_path);
+		runner.interpreter.execute({.text = R"(import "std.tl";)"});
+	}
 	if (args.args.empty()) {
 		runner.run();
 	} else {

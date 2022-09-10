@@ -78,7 +78,6 @@ inline constexpr TokenType increment(TokenType type) { return static_cast<TokenT
 struct Token {
 	using Type = TokenType;
 
-	std::string_view full_text{};
 	std::string_view lexeme{};
 	Location location{};
 	TokenType type{TokenType::eEof};

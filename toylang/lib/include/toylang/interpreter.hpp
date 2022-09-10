@@ -1,6 +1,7 @@
 #pragma once
 #include <toylang/environment.hpp>
 #include <toylang/media.hpp>
+#include <toylang/source.hpp>
 #include <toylang/stmt.hpp>
 #include <toylang/util/buffer.hpp>
 #include <toylang/util/reporter.hpp>
@@ -15,9 +16,9 @@ class Interpreter {
 
 	Interpreter& operator=(Interpreter&&) = delete;
 
-	bool execute(std::string_view program);
+	bool execute(Source program);
 	bool evaluate(std::string_view expression);
-	bool execute_or_evaluate(std::string_view text);
+	bool execute_or_evaluate(Source source);
 
 	Environment& environment() { return m_environment; }
 
@@ -50,7 +51,7 @@ class Interpreter {
 	template <typename... T>
 	void add_intrinsic();
 	void add_intrinsics();
-	std::string_view store(std::string_view filename, std::string_view full_text);
+	Source store(Source source);
 	Stmt& store(UStmt&& stmt);
 
 	std::unique_ptr<util::Reporter> m_reporter{};

@@ -27,11 +27,11 @@ struct Parser::Scope {
 	~Scope() noexcept { in.m_flags &= ~eScoped; }
 };
 
-Parser::Parser(std::string_view text, util::Notifier* notifier) : m_notifier{notifier}, m_scanner{text, m_notifier} { advance(); }
-Parser::Parser(Quiet, std::string_view text) : m_scanner{text} { advance(); }
+Parser::Parser(Source source, util::Notifier* notifier) : m_notifier{notifier}, m_scanner{source, m_notifier} { advance(); }
+Parser::Parser(Quiet, Source source) : m_scanner{source} { advance(); }
 
 bool Parser::is_expression(std::string_view text) {
-	auto parser = Parser{Quiet{}, text};
+	auto parser = Parser{Quiet{}, {.text = text}};
 	if (parser.parse_expr() && parser.at_end()) { return true; }
 	return false;
 }

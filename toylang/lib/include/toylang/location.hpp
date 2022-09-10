@@ -17,8 +17,9 @@ struct CharSpan {
 /// \brief Source location
 ///
 struct Location {
+	std::string_view filename{};
 	std::string_view full_text{};
-	std::uint32_t line{1};
 	CharSpan char_span{};
+	std::uint32_t line{1};
 };
 } // namespace toylang

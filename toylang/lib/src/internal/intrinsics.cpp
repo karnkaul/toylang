@@ -100,19 +100,13 @@ Value File::operator()(Interpreter& in, CallContext ctx) const {
 	auto* op = std::get_if<std::string>(&ctx.args[0].payload);
 	auto* arg0 = std::get_if<std::string>(&ctx.args[1].payload);
 	if (!op || !arg0) {
-		in.runtime_error(ctx.callee, "_file: Requires string, string arguments");
+		in.runtime_error(ctx.callee, "_file: Requires (string, string) arguments");
 		return {};
 	}
 	if (*op == "read") { return Value{.payload = util::read_file(arg0->c_str())}; }
-	if (*op == "last_modified") {
-		auto ec = std::error_code{};
-		auto ret = to_double(fs::last_write_time(*arg0, ec));
-		if (ec == std::error_code{}) { return Value{.payload = ret}; }
-		return Value{-1.0};
-	}
 	if (*op == "write") {
 		if (ctx.args.size() < 3) {
-			in.runtime_error(ctx.callee, "_file.write: Requires three arguments");
+			in.runtime_error(ctx.callee, "_file.write: Requires (string, string, string) arguments");
 			return {};
 		}
 		auto* arg1 = std::get_if<std::string>(&ctx.args[2].payload);

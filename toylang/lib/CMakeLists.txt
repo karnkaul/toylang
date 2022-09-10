@@ -15,6 +15,7 @@ target_sources(${PROJECT_NAME} PRIVATE
   include/toylang/media.hpp
   include/toylang/parser.hpp
   include/toylang/scanner.hpp
+  include/toylang/source.hpp
   include/toylang/stmt.hpp
   include/toylang/token.hpp
   include/toylang/value.hpp
