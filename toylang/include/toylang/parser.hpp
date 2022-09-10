@@ -17,6 +17,7 @@ class Parser {
 
 	static bool is_expression(std::string_view text);
 
+	StmtImport parse_import();
 	UExpr parse_expr();
 	UStmt parse_stmt();
 	Token const& current() const { return m_current; }

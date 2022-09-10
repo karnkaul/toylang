@@ -44,6 +44,7 @@ enum class TokenType {
 	eVar,
 	eBreak,
 	eStruct,
+	eImport,
 
 	eEof,
 
@@ -53,9 +54,9 @@ inline constexpr std::pair<TokenType, TokenType> single_range_v = {TokenType::eP
 inline constexpr std::pair<TokenType, TokenType> keyword_range_v = {TokenType::eAnd, TokenType::eEof};
 
 inline constexpr std::string_view token_str_v[] = {
-	"+",  "-",	 "*",	  "/",	",",	".",	";",		  "{",		"}",	  "(",	   ")",		 "!",	 "!=",
-	"=",  "==",	 ">",	  ">=", "<",	"<=",	"identifier", "number", "string", "and",   "or",	 "true", "false",
-	"fn", "for", "while", "if", "else", "null", "return",	  "this",	"var",	  "break", "struct", "eof",
+	"+",  "-",	 "*",	  "/",	",",	".",	";",		  "{",		"}",	  "(",	   ")",		 "!",	   "!=",
+	"=",  "==",	 ">",	  ">=", "<",	"<=",	"identifier", "number", "string", "and",   "or",	 "true",   "false",
+	"fn", "for", "while", "if", "else", "null", "return",	  "this",	"var",	  "break", "struct", "import", "eof",
 };
 static_assert(std::size(token_str_v) == static_cast<std::size_t>(TokenType::eCOUNT_));
 

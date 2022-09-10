@@ -32,13 +32,16 @@ class Interpreter {
 	struct Storage {
 		std::vector<util::CharBuf> texts{};
 		std::vector<UStmt> executed{};
+		std::vector<std::string> imported{};
 
 		void clear() {
 			texts.clear();
 			executed.clear();
+			imported.clear();
 		}
 	};
 
+	bool execute_import(Token const& path);
 	bool is_errored() const { return m_reporter->error(); }
 	bool require_unreserved(Token const& name) const;
 	bool define(Token const& name, Value value);

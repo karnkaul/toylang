@@ -77,7 +77,6 @@ struct Repl {
 	}
 
 	void run() {
-		if (auto text = file_str("list.tl"); !text.empty()) { interpreter.execute(text); }
 		auto write_cursor = [c = cursor] { std::cout << c << " "; };
 		write_cursor();
 		auto line = std::string{};

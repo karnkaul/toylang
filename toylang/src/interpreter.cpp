@@ -5,6 +5,7 @@
 #include <toylang/util.hpp>
 #include <compare>
 #include <cstdio>
+#include <fstream>
 #include <span>
 #include <utility>
 
@@ -34,6 +35,17 @@ void expect_assignable(util::Reporter* reporter, Token const& name, Value const&
 		if (reporter) { (*reporter)(make_runtime_error(name, "Cannot initialize variable as a struct")); }
 		throw EvalError{};
 	}
+}
+
+std::string read_file(std::string const& path) {
+	auto file = std::ifstream(path, std::ios::ate);
+	if (!file) { return {}; }
+	auto const size = file.tellg();
+	file.seekg({});
+	auto ret = std::string{};
+	ret.resize(static_cast<std::size_t>(size));
+	file.read(ret.data(), size);
+	return ret;
 }
 } // namespace
 
@@ -455,6 +467,9 @@ bool Interpreter::execute(std::string_view program) {
 	if (program.empty()) { return true; }
 	program = store({.full_text = program});
 	auto parser = Parser{program, m_reporter.get()};
+	while (auto stmt = parser.parse_import()) {
+		if (!execute_import(stmt.path)) { return false; }
+	}
 	auto exec = Exec{*this};
 	while (auto stmt = parser.parse_stmt()) {
 		try {
@@ -487,6 +502,21 @@ void Interpreter::clear_state() {
 	m_environment = Environment{};
 	m_storage.clear();
 	m_reporter.reset({});
+}
+
+bool Interpreter::execute_import(Token const& path) {
+	if (std::find(m_storage.imported.begin(), m_storage.imported.end(), path.lexeme) != m_storage.imported.end()) { return true; }
+	auto str = std::string{path.lexeme};
+	auto program = read_file(str);
+	if (program.empty()) {
+		m_reporter->notify(make_runtime_error(path, "File not found"));
+		return false;
+	}
+	if (execute(program)) {
+		m_storage.imported.push_back(std::move(str));
+		return true;
+	}
+	return false;
 }
 
 bool Interpreter::require_unreserved(Token const& name) const {

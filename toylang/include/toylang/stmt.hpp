@@ -15,6 +15,12 @@ struct Stmt {
 
 using UStmt = UPtr<Stmt>;
 
+struct StmtImport {
+	Token path{};
+
+	explicit operator bool() const { return static_cast<bool>(path); }
+};
+
 struct StmtExpr : Stmt {
 	UExpr expr;
 
